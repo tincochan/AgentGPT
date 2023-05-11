@@ -9,7 +9,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    defaults:
+      run:
+        working-directory: next
     steps:
       - uses: actions/checkout@v3
       - name: Use Node.js 18
@@ -17,5 +19,10 @@ jobs:
         with:
           node-version: 18.x
           cache: "npm"
+          cache-dependency-path: next/package-lock.json
       - run: npm ci
       - run: npm test
+        env:
+          OPENAI_API_KEY: sk-0000000000
+      - run: ./prisma/useSqlite.sh && npm run postinstall
+
