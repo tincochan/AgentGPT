@@ -1,39 +1,25 @@
-from typing import List, Optional
+from typing import List, Any
+
+from fastapi.responses import StreamingResponse as FastAPIStreamingResponse
 
 from reworkd_platform.web.api.agent.agent_service.agent_service import AgentService
 from reworkd_platform.web.api.agent.agent_service.agent_service import Analysis
-from reworkd_platform.web.api.agent.model_settings import ModelSettings
+from reworkd_platform.web.api.agent.tools.stream_mock import stream_string
 
 
 class MockAgentService(AgentService):
-    async def start_goal_agent(
-        self, model_settings: ModelSettings, goal: str, language: str
-    ) -> List[str]:
+    async def start_goal_agent(self, **kwargs: Any) -> List[str]:
         return ["Task 1"]
 
-    async def create_tasks_agent(
-        self,
-        model_settings: ModelSettings,
-        goal: str,
-        language: str,
-        tasks: List[str],
-        last_task: str,
-        result: str,
-        completed_tasks: Optional[List[str]] = None,
-    ) -> List[str]:
+    async def create_tasks_agent(self, **kwargs: Any) -> List[str]:
         return ["Task 4"]
 
-    async def analyze_task_agent(
-        self, model_settings: ModelSettings, goal: str, task: str
-    ) -> Analysis:
-        return Analysis(action="reason", arg="Mock analysis")
+    async def analyze_task_agent(self, **kwargs: Any) -> Analysis:
+        return Analysis(
+            action="reason",
+            arg="Mock analysis",
+            reasoning="Mock to avoid wasting money calling the OpenAI API.",
+        )
 
-    async def execute_task_agent(
-        self,
-        model_settings: ModelSettings,
-        goal: str,
-        language: str,
-        task: str,
-        analysis: Analysis,
-    ) -> str:
-        return "Result: " + task
+    async def execute_task_agent(self, **kwargs: Any) -> FastAPIStreamingResponse:
+        return stream_string("The task result is: " + kwargs.get("task", "task"), True)

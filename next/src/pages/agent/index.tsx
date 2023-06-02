@@ -6,13 +6,13 @@ import Button from "../../components/Button";
 import React, { useState } from "react";
 import { useRouter } from "next/router";
 import { api } from "../../utils/api";
-import ChatWindow from "../../components/ChatWindow";
+import ChatWindow from "../../components/console/ChatWindow";
 import type { Message } from "../../types/agentTypes";
 import Toast from "../../components/toast";
 import { FaBackspace, FaShare, FaTrash } from "react-icons/fa";
 import { env } from "../../env/client.mjs";
 
-import { useTranslation } from "react-i18next";
+import { useTranslation } from "next-i18next";
 import { languages } from "../../utils/languages";
 import { serverSideTranslations } from "next-i18next/serverSideTranslations";
 import nextI18NextConfig from "../../../next-i18next.config";

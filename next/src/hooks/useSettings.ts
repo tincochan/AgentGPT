@@ -9,7 +9,6 @@ import {
 
 const SETTINGS_KEY = "AGENTGPT_SETTINGS";
 const DEFAULT_SETTINGS: ModelSettings = {
-  customApiKey: "",
   customModelName: GPT_35_TURBO,
   customTemperature: 0.9 as const,
   customMaxLoops: DEFAULT_MAX_LOOPS_CUSTOM_API_KEY,
@@ -38,15 +37,12 @@ const loadSettings = () => {
     });
   } catch (error) {}
 
-  if (!settings.customApiKey) {
-    return { ...DEFAULT_SETTINGS };
+  if (settings.customMaxLoops === DEFAULT_MAX_LOOPS_FREE) {
+    settings.customMaxLoops = DEFAULT_MAX_LOOPS_CUSTOM_API_KEY;
   }
 
-  if (
-    settings.customApiKey &&
-    settings.customMaxLoops === DEFAULT_MAX_LOOPS_FREE
-  ) {
-    settings.customMaxLoops = DEFAULT_MAX_LOOPS_CUSTOM_API_KEY;
+  if (settings.customMaxLoops && settings.customMaxLoops > 25) {
+    settings.customMaxLoops = 25;
   }
 
   return settings;

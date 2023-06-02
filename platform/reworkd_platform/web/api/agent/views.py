@@ -1,28 +1,18 @@
-from typing import List, Optional
+from typing import List
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse as FastAPIStreamingResponse
 from pydantic import BaseModel
 
+from reworkd_platform.schemas import AgentRequestBody
 from reworkd_platform.web.api.agent.agent_service.agent_service_provider import (
     get_agent_service,
 )
 from reworkd_platform.web.api.agent.analysis import Analysis
-from reworkd_platform.web.api.agent.model_settings import ModelSettings
-from reworkd_platform.web.api.agent.tools.wikipedia_search import WikipediaSearch
+from reworkd_platform.web.api.agent.dependancies import agent_validator
+from reworkd_platform.web.api.agent.tools.tools import get_external_tools, get_tool_name
 
 router = APIRouter()
-
-
-class AgentRequestBody(BaseModel):
-    modelSettings: ModelSettings = ModelSettings()
-    goal: str
-    language: Optional[str] = "English"
-    task: Optional[str]
-    analysis: Optional[Analysis]
-    tasks: Optional[List[str]]
-    lastTask: Optional[str]
-    result: Optional[str]
-    completedTasks: Optional[List[str]]
 
 
 class NewTasksResponse(BaseModel):
@@ -30,85 +20,98 @@ class NewTasksResponse(BaseModel):
 
 
 @router.post("/start")
-async def start(request_body: AgentRequestBody) -> NewTasksResponse:
-    try:
-        new_tasks = await get_agent_service().start_goal_agent(
-            request_body.modelSettings,
-            request_body.goal,
-            request_body.language,
+async def start_tasks(
+    req_body: AgentRequestBody = Depends(
+        agent_validator(
+            example={
+                "goal": "Create business plan for a bagel company",
+                "task": "Identify the most common bagel shapes",
+                "modelSettings": {
+                    "customModelName": "gpt-3.5-turbo",
+                },
+            }
         )
-        return NewTasksResponse(newTasks=new_tasks)
-    except Exception as error:
-        raise HTTPException(
-            status_code=500,
-            detail=f"An error occurred while processing the request. {error}",
-        )
+    ),
+) -> NewTasksResponse:
+    new_tasks = await get_agent_service(req_body.modelSettings).start_goal_agent(
+        goal=req_body.goal
+    )
+    return NewTasksResponse(newTasks=new_tasks)
+
+
+@router.post("/analyze")
+async def analyze_tasks(
+    req_body: AgentRequestBody = Depends(agent_validator()),
+) -> Analysis:
+    return await get_agent_service(req_body.modelSettings).analyze_task_agent(
+        goal=req_body.goal,
+        task=req_body.task or "",
+        tool_names=req_body.toolNames or [],
+    )
 
 
 class CompletionResponse(BaseModel):
     response: str
 
 
-@router.post("/analyze")
-async def analyze_task(request_body: AgentRequestBody) -> CompletionResponse:
-    try:
-        response = await get_agent_service().analyze_task_agent(
-            request_body.modelSettings,
-            request_body.goal,
-            request_body.task,
-        )
-        return CompletionResponse(response=response)
-    except Exception as error:
-        raise HTTPException(
-            status_code=500,
-            detail=f"An error occurred while processing the request. {error}",
-        )
-
-
-class Wiki(BaseModel):
-    goal: str
-    task: str
-    query: str
-
-
-@router.post("/test-wiki-search")
-async def wiki(req: Wiki) -> str:
-    return WikipediaSearch({}).call(req.goal, req.task, req.query)
-
-
 @router.post("/execute")
-async def execute_task(request_body: AgentRequestBody) -> CompletionResponse:
-    try:
-        response = await get_agent_service().execute_task_agent(
-            request_body.modelSettings,
-            request_body.goal,
-            request_body.language,
-            request_body.task,
-            request_body.analysis,
+async def execute_tasks(
+    req_body: AgentRequestBody = Depends(
+        agent_validator(
+            example={
+                "goal": "Perform tasks accurately",
+                "task": "Write code to make a platformer",
+                "analysis": {
+                    "reasoning": "I like to write code.",
+                    "action": "code",
+                    "arg": "",
+                },
+            }
         )
-        return CompletionResponse(response=response)
-    except Exception as error:
-        raise HTTPException(
-            status_code=500,
-            detail=f"An error occurred while processing the request. {error}",
-        )
+    ),
+) -> FastAPIStreamingResponse:
+    return await get_agent_service(req_body.modelSettings).execute_task_agent(
+        goal=req_body.goal or "",
+        task=req_body.task or "",
+        analysis=req_body.analysis or Analysis.get_default_analysis(),
+    )
 
 
 @router.post("/create")
-async def create_tasks(request_body: AgentRequestBody) -> NewTasksResponse:
-    try:
-        new_tasks = await get_agent_service().create_tasks_agent(
-            request_body.modelSettings,
-            request_body.goal,
-            request_body.language,
-            request_body.tasks,
-            request_body.lastTask,
-            request_body.result,
-            request_body.completedTasks,
+async def create_tasks(
+    req_body: AgentRequestBody = Depends(agent_validator()),
+) -> NewTasksResponse:
+    new_tasks = await get_agent_service(req_body.modelSettings).create_tasks_agent(
+        goal=req_body.goal,
+        tasks=req_body.tasks or [],
+        last_task=req_body.lastTask or "",
+        result=req_body.result or "",
+        completed_tasks=req_body.completedTasks or [],
+    )
+    return NewTasksResponse(newTasks=new_tasks)
+
+
+class ToolModel(BaseModel):
+    name: str
+    description: str
+    color: str
+
+
+class ToolsResponse(BaseModel):
+    tools: List[ToolModel]
+
+
+@router.get("/tools")
+async def get_user_tools() -> ToolsResponse:
+    tools = get_external_tools()
+    formatted_tools = [
+        ToolModel(
+            name=get_tool_name(tool),
+            description=tool.public_description,
+            color="TODO: Change to image of tool",
         )
-        return NewTasksResponse(newTasks=new_tasks)
-    except Exception as error:
-        raise HTTPException(
-            status_code=500,
-            detail=f"An error occurred while processing the request. {error}",
-        )
+        for tool in tools
+        if tool.available()
+    ]
+
+    return ToolsResponse(tools=formatted_tools)

@@ -3,17 +3,17 @@ import { useTranslation } from "next-i18next";
 import { type GetStaticProps, type NextPage } from "next";
 import Badge from "../components/Badge";
 import DefaultLayout from "../layout/default";
-import ChatWindow from "../components/ChatWindow";
-import Drawer from "../components/Drawer";
+import ChatWindow from "../components/console/ChatWindow";
+import Drawer from "../components/drawer/Drawer";
 import Input from "../components/Input";
 import Button from "../components/Button";
-import { FaPlay, FaRobot, FaStar } from "react-icons/fa";
+import { FaCog, FaPlay, FaRobot, FaStar } from "react-icons/fa";
 import PopIn from "../components/motions/popin";
 import { VscLoading } from "react-icons/vsc";
-import AutonomousAgent from "../components/AutonomousAgent";
+import AutonomousAgent from "../services/agent/autonomous-agent";
 import Expand from "../components/motions/expand";
-import HelpDialog from "../components/HelpDialog";
-import { SettingsDialog } from "../components/SettingsDialog";
+import HelpDialog from "../components/dialog/HelpDialog";
+import { SettingsDialog } from "../components/dialog/SettingsDialog";
 import { TaskWindow } from "../components/TaskWindow";
 import { useAuth } from "../hooks/useAuth";
 import type { AgentPlaybackControl, Message } from "../types/agentTypes";
@@ -25,9 +25,9 @@ import { serverSideTranslations } from "next-i18next/serverSideTranslations";
 import { useSettings } from "../hooks/useSettings";
 import { findLanguage, languages } from "../utils/languages";
 import nextI18NextConfig from "../../next-i18next.config.js";
-import { SorryDialog } from "../components/SorryDialog";
-import { SignInDialog } from "../components/SignInDialog";
+import { SignInDialog } from "../components/dialog/SignInDialog";
 import { env } from "../env/client.mjs";
+import { ToolsDialog } from "../components/dialog/ToolsDialog";
 
 const Home: NextPage = () => {
   const { i18n } = useTranslation();
@@ -52,8 +52,8 @@ const Home: NextPage = () => {
 
   const [showHelpDialog, setShowHelpDialog] = React.useState(false);
   const [showSettingsDialog, setShowSettingsDialog] = React.useState(false);
-  const [showSorryDialog, setShowSorryDialog] = React.useState(false);
   const [showSignInDialog, setShowSignInDialog] = React.useState(false);
+  const [showToolsDialog, setShowToolsDialog] = React.useState(false);
   const [hasSaved, setHasSaved] = React.useState(false);
   const agentUtils = useAgent();
 
@@ -120,11 +120,13 @@ const Home: NextPage = () => {
     const newAgent = new AutonomousAgent(
       name.trim(),
       goal.trim(),
-      findLanguage(i18n.language).name,
       handleAddMessage,
       handlePause,
       () => setAgent(null),
-      settingsModel.settings,
+      {
+        language: findLanguage(i18n.language).name,
+        ...settingsModel.settings,
+      },
       agentMode,
       session ?? undefined
     );
@@ -162,12 +164,6 @@ const Home: NextPage = () => {
     updateIsAgentStopped();
   };
 
-  const proTitle = (
-    <>
-      AgentGPT<span className="ml-1 text-amber-500/90">Pro</span>
-    </>
-  );
-
   const handleVisibleWindowClick = (visibleWindow: "Chat" | "Tasks") => {
     // This controls whether the ChatWindow or TaskWindow is visible on mobile
     setMobileVisibleWindow(visibleWindow);
@@ -202,12 +198,12 @@ const Home: NextPage = () => {
   return (
     <DefaultLayout>
       <HelpDialog show={showHelpDialog} close={() => setShowHelpDialog(false)} />
+      <ToolsDialog show={showToolsDialog} close={() => setShowToolsDialog(false)} />
       <SettingsDialog
         customSettings={settingsModel}
         show={showSettingsDialog}
         close={() => setShowSettingsDialog(false)}
       />
-      <SorryDialog show={showSorryDialog} close={() => setShowSorryDialog(false)} />
       <SignInDialog show={showSignInDialog} close={() => setShowSignInDialog(false)} />
       <main className="flex min-h-screen flex-row">
         <Drawer
@@ -229,7 +225,7 @@ const Home: NextPage = () => {
                 </span>
                 <span className="text-4xl font-bold text-white xs:text-5xl sm:text-6xl">GPT</span>
                 <PopIn delay={0.5}>
-                  <Badge>
+                  <Badge colorClass="bg-gradient-to-t from-sky-500 to-sky-600 border-2 border-white/20">
                     {`${i18n?.t("BETA", {
                       ns: "indexPage",
                     })}`}{" "}
@@ -265,7 +261,7 @@ const Home: NextPage = () => {
             <Expand className="flex w-full flex-row">
               <ChatWindow
                 messages={messages}
-                title={session?.user.subscriptionId ? proTitle : "AgentGPT"}
+                title="AgentGPT"
                 onSave={
                   shouldShowSave
                     ? (format) => {
@@ -280,15 +276,14 @@ const Home: NextPage = () => {
                 }
                 scrollToBottom
                 displaySettings
-                openSorryDialog={() => setShowSorryDialog(true)}
                 setAgentRun={setAgentRun}
                 visibleOnMobile={mobileVisibleWindow === "Chat"}
               />
               <TaskWindow visibleOnMobile={mobileVisibleWindow === "Tasks"} />
             </Expand>
 
-            <div className="flex w-full flex-col gap-2 md:m-4 ">
-              <Expand delay={1.2}>
+            <div className="flex w-full flex-col gap-2 md:m-4">
+              <Expand delay={1.2} className="flex flex-row items-end gap-2 md:items-center">
                 <Input
                   inputRef={nameInputRef}
                   left={
@@ -306,6 +301,10 @@ const Home: NextPage = () => {
                   placeholder="AgentGPT"
                   type="text"
                 />
+                <Button ping onClick={() => setShowToolsDialog(true)} className="h-fit">
+                  <p className="mr-3">Tools</p>
+                  <FaCog />
+                </Button>
               </Expand>
               <Expand delay={1.3}>
                 <Input
